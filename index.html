@@ -22,9 +22,9 @@
     /* 青白い光 */
     --glow:#cfe0ff;
     --glow-soft:#9db4e6;
-    --ink:#e6ecff;      /* 通常の文字 */
-    --ink-dim:#8a93bd;  /* 沈んだ文字 */
-    --ink-faint:#565f8a;
+    --ink:#e9eeff;      /* 通常の文字 */
+    --ink-dim:#a6aed0;  /* 沈んだ文字（読める最低ラインへ引き上げ） */
+    --ink-faint:#828cb0;
     --accent:#a99cff;   /* 差し色の紫 */
     --sans:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",-apple-system,system-ui,sans-serif;
     --mincho:"Hiragino Mincho ProN","Yu Mincho","YuMincho",serif;
@@ -66,6 +66,11 @@
   /* 光の居場所（キャンバスが背後で光る帯）＋ 闇に浮かぶ声 */
   .hero{flex:0 0 auto;min-height:46vh;display:flex;flex-direction:column;
     align-items:center;justify-content:center;text-align:center;position:relative;}
+  /* 光を眺めるモード：UIが静かに沈み、光だけが残る */
+  .wrap,.tabs{transition:opacity .6s ease;}
+  body.gazing .wrap,body.gazing .tabs{opacity:0;pointer-events:none;}
+  body.intro .wrap,body.intro .tabs{opacity:0;pointer-events:none;}
+  #gaze-catch{position:fixed;inset:0;z-index:10;display:none;}
   .voice{font-family:var(--voice);font-weight:200;color:var(--glow);
     font-size:21px;line-height:1.65;letter-spacing:.04em;
     text-shadow:0 0 22px rgba(150,185,255,.5), 0 0 46px rgba(120,150,255,.22);
@@ -87,22 +92,22 @@
   .voice-actions button:active{background:rgba(160,190,255,.16);}
   .voice-actions button[data-wa="done"]{color:var(--glow);border-color:rgba(160,195,255,.35);}
   .voice-actions button[data-wa="del"]{color:#bf5568;border-color:rgba(191,85,104,.28);}
-  /* ドット差異：願いは小さめ、叶えた願いは満ちて輝く、末尾は＋ */
-  .voice-dots{flex-wrap:wrap;}
-  .voice-dots .vd.wish{width:4px;height:4px;opacity:.22;}
-  .voice-dots .vd.wish.on{opacity:1;transform:scale(1.35);}
-  .voice-dots .vd.wish.wdone{background:#eaf1ff;opacity:.6;
-    box-shadow:0 0 7px 1px rgba(210,225,255,.7);}
-  .voice-dots .vd.wish.wdone.on{opacity:1;}
-  .voice-dots .vd.add{width:auto;height:auto;background:none;box-shadow:none;
-    font-size:11px;line-height:1;color:var(--ink-faint);opacity:.6;transform:none;}
-  .voice-dots .vd.add.on{opacity:1;color:var(--glow);}
-  /* 声の切替を示す小さな星（Wisdom / Starlight） */
-  .voice-dots{display:flex;justify-content:center;gap:14px;margin-top:22px;height:10px;}
-  .voice-dots .vd{width:5px;height:5px;border-radius:50%;background:var(--glow);
-    opacity:.28;cursor:pointer;transition:.35s;transform:scale(.85);}
-  .voice-dots .vd.on{opacity:1;transform:scale(1.25);
+  /* 声の切替ドット（見た目は小さく、当たり判定は大きく） */
+  .voice-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;margin-top:16px;}
+  .voice-dots .vd{width:26px;height:26px;border-radius:50%;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;}
+  .voice-dots .vd::before{content:"";width:5px;height:5px;border-radius:50%;
+    background:var(--glow);opacity:.3;transition:.35s;}
+  .voice-dots .vd.on::before{opacity:1;transform:scale(1.3);
     box-shadow:0 0 10px 2px rgba(180,205,255,.7),0 0 18px 4px rgba(150,185,255,.3);}
+  .voice-dots .vd.wish::before{width:4px;height:4px;opacity:.26;}
+  .voice-dots .vd.wish.on::before{opacity:1;transform:scale(1.45);}
+  .voice-dots .vd.wish.wdone::before{background:#eaf1ff;opacity:.65;
+    box-shadow:0 0 7px 1px rgba(210,225,255,.7);}
+  .voice-dots .vd.wish.wdone.on::before{opacity:1;}
+  .voice-dots .vd.add::before{display:none;}
+  .voice-dots .vd.add{font-size:13px;line-height:1;color:var(--ink-faint);}
+  .voice-dots .vd.add.on{color:var(--glow);}
   @keyframes rise{from{opacity:0;transform:translateY(10px);filter:blur(6px);}
     to{opacity:1;transform:none;filter:blur(0);}}
 
@@ -205,6 +210,8 @@
     padding:6px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
   #chart{width:100%;height:100%;display:block;}
   .g-lines{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:14px;}
+  .g-hint{text-align:center;margin-top:10px;font-size:10.5px;color:var(--ink-faint);
+    letter-spacing:.04em;line-height:1.6;padding:0 10px;}
   .lt{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-faint);
     background:rgba(140,160,230,.05);border:1px solid var(--panel-line);border-radius:11px;
     padding:7px 12px;cursor:pointer;letter-spacing:.04em;transition:.15s;}
@@ -381,6 +388,7 @@
 <body>
   <canvas id="sky"></canvas>
   <canvas id="dust"></canvas>
+  <div id="gaze-catch"></div>
 
   <div class="wrap">
    <div id="view-home" class="view">
@@ -425,6 +433,7 @@
      </div>
      <div class="chart-wrap"><canvas id="chart"></canvas></div>
      <div class="g-lines" id="g-lines"></div>
+     <div class="g-hint">線の高さ＝その日の貢献度。体調は状態の波、Daily Goals は達成率（目標＝破線）。</div>
      <div class="cal-legend">日々を結んだ、あなたの軌跡。</div>
    </div><!-- /view-graph -->
   </div><!-- /wrap -->
@@ -700,16 +709,19 @@ function totalExp(){
 
 /* 光のパラメータ：大きさ=積み重ね(exp) / 色段階=月ペース / 明るさ=今日＋勢い */
 function lightParams(){
+  if(location.hash.indexOf("maxlight")>=0)      // 隠しプレビュー：URL末尾に #maxlight
+    return {size:2.4, colorStage:12, bright:0.98, streak:99, recorded:true, exp:3600, grow:1};
   const exp=totalExp();
   const streak=streakCount();
   const recorded=isRecorded(state.days[TODAY]);
-  // 大きさ：1年(≈exp4500)で 0.55→2.05 まで、ゆるやかに。積み重ねは縮まない。
-  const size=0.55 + Math.min(exp/4500,1)*1.5;
-  // 色段階：おおよそ月1色ペース（≈375expで+1）、上限12。最初は青白の単色。
-  const colorStage=Math.min(1+Math.floor(exp/375),12);
-  // 明るさ：土台＋今日記録＋連続の勢い（上限あり）
+  const grow=Math.min(exp/3600,1);              // 0..1 成熟度（新スケールで1年ほど）
+  // 大きさ：積み重ねで大きく（最大 ~2.4）。縮まない。
+  const size=0.55 + grow*1.85;
+  // 色段階：約280exp で1色増える（最大12）。最初は青白の単色。
+  const colorStage=Math.min(1+Math.floor(exp/280),12);
+  // 明るさ：土台＋今日記録＋連続の勢い
   const bright=0.34 + (recorded?0.30:0) + Math.min(streak*0.02,0.34);
-  return {size,colorStage,bright,streak,recorded,exp};
+  return {size,colorStage,bright,streak,recorded,exp,grow};
 }
 
 /* ================= 声（日替わりの名言・オフライン） =================
@@ -990,7 +1002,7 @@ document.getElementById("voice-actions").addEventListener("click",e=>{
   if(act==="edit"){ askInput("願いを書き換える",{value:w.text},v=>{ v=(v||"").trim(); if(v){ w.text=v; save(); renderVoice(); } }); }
   else if(act==="done"){ w.done=true; save(); renderVoice(); }
   else if(act==="undone"){ w.done=false; save(); renderVoice(); }
-  else if(act==="del"){ askConfirm("この願いを手放しますか？",()=>{ wishes().splice(pg.i,1); voiceIdx=clampIdx(voiceIdx,voicePages().length); save(); renderVoice(); }); }
+  else if(act==="del"){ askConfirm("この願いを手放しますか？ 夜空から消えます。",()=>{ wishes().splice(pg.i,1); voiceIdx=clampIdx(voiceIdx,voicePages().length); save(); renderVoice(); }); }
 });
 /* ドット：タップでそのページへ */
 document.getElementById("voice-dots").addEventListener("click",e=>{
@@ -1009,6 +1021,15 @@ document.getElementById("voice").addEventListener("click",()=>{
   hero.addEventListener("touchend",e=>{ const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)){ lastSwipeAt=Date.now(); goVoice(dx<0?1:-1); }
   },{passive:true});
+  // 光（ヒーローの余白）をタップ → 眺めモードへ
+  hero.addEventListener("click",e=>{ if(e.target===hero && Date.now()-lastSwipeAt>400) enterGaze(); });
+})();
+/* 眺めモード／起動演出：どこでもタップで戻る・スキップ */
+(function(){
+  const gc=document.getElementById("gaze-catch");
+  const tap=()=>{ if(introActive) finishIntro(); else exitGaze(); };
+  gc.addEventListener("click",tap);
+  gc.addEventListener("touchend",tap,{passive:true});
 })();
 
 /* ================= 画面描画 ================= */
@@ -1171,7 +1192,7 @@ document.getElementById("sections").addEventListener("click",e=>{
     }); return;
   }
   if(act==="rename"){ askInput("名前を変更",{value:sec.name},v=>{ v=(v||"").trim(); if(v){ sec.name=v; afterChange(); } }); return; }
-  if(act==="delsec"){ askConfirm("「"+sec.name+"」を削除しますか？（記録は残ります）",()=>{ state.config.sections=sections().filter(s=>s.id!==id); delete editing[id]; afterChange(); }); return; }
+  if(act==="delsec"){ askConfirm("「"+sec.name+"」を削除しますか？ 今後の記録・グラフからは外れます（過去の記録は日別の詳細に残ります）。",()=>{ state.config.sections=sections().filter(s=>s.id!==id); delete editing[id]; afterChange(); }); return; }
 });
 
 /* ---- セクション追加モーダル ---- */
@@ -1287,44 +1308,87 @@ for(let i=0;i<26;i++){
 let curBright=0.34, curScale=0.55;
 function pulse(){ /* 描画ループが lightParams を毎フレーム読むので即応する */ }
 
+let gazing=false, gazeTarget=0, gazeAmt=0;
+let introActive=false, introStart=0; const INTRO_DUR=1500;
+function introScale(pr){
+  if(pr<0.65){ const e=pr/0.65; return 0.12 + (3.0-0.12)*(1-Math.pow(1-e,3)); } // 小→一気にMAX
+  const e=(pr-0.65)/0.35; return 3.0 - (3.0-2.6)*e;                              // 少し収束
+}
 function frame(t){
   const p=lightParams();
   curBright += (p.bright-curBright)*0.06;
   curScale  += (p.size -curScale )*0.05;
-  const breathe = reduce ? 1 : 1+Math.sin(t*0.0011)*0.06;   // ゆっくりした呼吸
-  const R=baseR*curScale*breathe*DPR/DPR;
+  gazeAmt   += (gazeTarget-gazeAmt)*0.08;
+  const breathe = reduce ? 1 : 1+Math.sin(t*0.0011)*0.06;
+
+  let CY, R, gg, cs, bb;
+  if(introActive){                                  // 起動演出：MAXの光を中央で小→大
+    const pr=Math.min(1,(t-introStart)/INTRO_DUR);
+    const s=introScale(pr);
+    CY=H*0.5; R=baseR*s*breathe; gg=1; cs=12; bb=0.98;
+    curScale=s;                                     // 終了後、通常サイズへイージングする起点
+    if(pr>=1) finishIntro();
+  } else {
+    CY=H*0.30 + (H*0.5 - H*0.30)*gazeAmt;           // 通常は上部、眺めると中央へ
+    R=baseR*curScale*breathe*(1+gazeAmt*0.55);
+    gg=p.grow; cs=p.colorStage; bb=curBright;
+  }
+  const coreB=1+gg*0.5;
 
   sctx.clearRect(0,0,W,H);
   sctx.globalCompositeOperation="lighter";
 
-  // 核：青白いモヤ（二重に重ねて濃淡）
-  glow(cx,cy,R*3.4, PALETTE[0], curBright*0.16*breathe);
-  glow(cx,cy,R*1.7, PALETTE[0], curBright*0.34*breathe);
-  glow(cx,cy,R*0.8, PALETTE[0], curBright*0.42*breathe);
-
-  // 色の層：段階が上がるほど、別の色が周囲にそっと足される
-  for(let i=1;i<p.colorStage;i++){
+  // 広がるコロナ
+  if(gg>0.02) glow(cx,CY,R*5.2, PALETTE[0], bb*0.05*gg*breathe);
+  // 核：青白いモヤ
+  glow(cx,CY,R*3.4, PALETTE[0], bb*0.16*coreB*breathe);
+  glow(cx,CY,R*1.7, PALETTE[0], bb*0.34*coreB*breathe);
+  glow(cx,CY,R*0.8, PALETTE[0], bb*0.46*coreB*breathe);
+  // 白熱する芯
+  glow(cx,CY,R*0.36, [246,250,255], bb*(0.28+gg*0.5)*breathe);
+  // 色の層
+  for(let i=1;i<cs;i++){
     const ang=t*0.0002*(i%2?1:-1) + i*(Math.PI*2/6);
-    const dist=R*(1.0+0.25*i);
+    const dist=R*(1.0+0.22*i);
     const bx=cx+Math.cos(ang)*dist*0.5;
-    const by=cy+Math.sin(ang)*dist*0.5;
-    glow(bx,by,R*1.5, PALETTE[i%PALETTE.length], curBright*0.14*breathe);
+    const by=CY+Math.sin(ang)*dist*0.5;
+    glow(bx,by,R*1.5, PALETTE[i%PALETTE.length], bb*(0.14+gg*0.13)*breathe);
   }
-
   // 漂う粒
-  for(const m of motes){
+  const moteN=Math.round(motes.length*(0.5+gg*0.5));
+  for(let idx=0; idx<moteN; idx++){
+    const m=motes[idx];
     const drift = reduce ? 0 : t*0.00006*m.sp;
     const ang=m.a+drift;
     const rr=(0.4+m.rad*2.2)*R;
     const x=cx+Math.cos(ang)*rr;
-    const y=cy+Math.sin(ang*0.8+m.ph)*rr*0.7 - (reduce?0:Math.sin(t*0.0004+m.ph)*R*0.15);
+    const y=CY+Math.sin(ang*0.8+m.ph)*rr*0.7 - (reduce?0:Math.sin(t*0.0004+m.ph)*R*0.15);
     const tw=0.5+0.5*Math.sin(t*0.001+m.ph);
-    glow(x,y,R*0.13*m.sz, PALETTE[0], curBright*0.5*tw*0.5);
+    glow(x,y,R*0.13*m.sz, PALETTE[m.ph*7%PALETTE.length|0], bb*(0.5+gg*0.5)*tw*0.5);
   }
 
   sctx.globalCompositeOperation="source-over";
   drawStars(t);
   requestAnimationFrame(frame);
+}
+/* 光を眺める：ホームの光をタップで入り、UIが沈んで光が中央に広がる */
+function enterGaze(){ if(gazing||introActive) return; gazing=true; gazeTarget=1; document.body.classList.add("gazing"); const gc=document.getElementById("gaze-catch"); if(gc) gc.style.display="block"; }
+function exitGaze(){ if(!gazing) return; gazing=false; gazeTarget=0; document.body.classList.remove("gazing"); const gc=document.getElementById("gaze-catch"); if(gc) setTimeout(()=>{ if(!gazing) gc.style.display="none"; },650); }
+/* 起動演出（1日1回・その日の最初の起動だけ） */
+function maybeIntro(){
+  let last=null; try{ last=localStorage.getItem("astralog.intro"); }catch(e){}
+  if(last===TODAY || reduce){ try{ localStorage.setItem("astralog.intro",TODAY); }catch(e){} return; }
+  introActive=true; introStart=performance.now();
+  document.body.classList.add("intro");
+  const gc=document.getElementById("gaze-catch"); if(gc) gc.style.display="block";
+}
+function finishIntro(){
+  if(!introActive) return;
+  introActive=false;
+  document.body.classList.remove("intro");
+  gazeAmt=1; gazeTarget=0;                 // 中央→上部へ、UIフェードイン
+  const gc=document.getElementById("gaze-catch"); if(gc) gc.style.display="none";
+  try{ localStorage.setItem("astralog.intro",TODAY); }catch(e){}
 }
 
 /* 夜空の星野：瞬き＋願いの星座（夏の大三角）＋ごく稀な流れ星（さりげなく） */
@@ -1747,9 +1811,18 @@ function lineColor(id){
 function sectionDayValue(sec,k){
   const rec=state.days[k]; if(!isRecorded(rec)) return 0;
   const lg=(rec.logs||{})[sec.id]; if(!lg) return 0;
-  if(sec.type==="amount"||sec.type==="menu") return (lg.entries||[]).reduce((a,e)=>a+(+e.v||0),0);
-  if(sec.type==="choice") return (sec.scoreMap&&lg.sel)?(sec.scoreMap[lg.sel]||0):(lg.sel?1:0);
-  return 0;
+  if(evalType(sec)==="goal"){                         // 折れ線は達成率
+    const g=evalCfg(sec).goal; if(!g||g<=0) return 0;
+    const total=(lg.entries||[]).reduce((a,e)=>a+(+e.v||0),0);
+    return total/g;
+  }
+  if(evalType(sec)==="choice"){                        // 段階の波（先頭=上、末尾=下、等間隔）
+    if(!lg.sel) return 0;
+    const opts=sec.options||[], idx=opts.indexOf(lg.sel);
+    if(idx<0||opts.length<=1) return 1;
+    return 1 - idx/(opts.length-1);
+  }
+  return evalPoints(sec, rec);                         // それ以外は経験値ポイント
 }
 function buildSeries(range){
   const secs=sections(), out=[], now=new Date();
@@ -1759,6 +1832,7 @@ function buildSeries(range){
       const p={label:(m+1)+"月",k:null,exp:0,vals:{},maxc:days*DAILY_CAP};
       secs.forEach(s=>p.vals[s.id]=0);
       for(let dd=1;dd<=days;dd++){ const k=dayKey(new Date(y,m,dd)); p.exp+=dayExp(state.days[k]); secs.forEach(s=>p.vals[s.id]+=sectionDayValue(s,k)); }
+      secs.forEach(s=>{ const t=evalType(s); if(t==="goal"||t==="choice") p.vals[s.id]=p.vals[s.id]/days; }); // 目標型・体調は月平均
       out.push(p);
     }
   } else {
@@ -1799,19 +1873,18 @@ function drawChart(){
     if(bh>1.5){ cctx.fillStyle="rgba(200,220,255,0.8)"; cctx.fillRect(x-barW/2,y,barW,1.4); }
   });
 
-  // 折れ線：全体＋各セクション
+  // 折れ線：全体＋各セクション。Note/Progress/Choice/全体は「経験値ポイント」の共通スケール、Daily Goalsは達成率
   const lines=[];
-  if(activeLines.has("__all__")) lines.push({id:"__all__", goal:false, vals:chartSeries.map(s=>s.exp), max:Math.max(15,...chartSeries.map(s=>s.exp))});
+  if(activeLines.has("__all__")) lines.push({id:"__all__", goal:false, vals:chartSeries.map(s=>s.exp)});
   sections().forEach(s=>{ if(activeLines.has(s.id)){
-    const vs=chartSeries.map(p=>p.vals[s.id]||0);
-    const isGoal = evalType(s)==="goal";
-    const gv = isGoal ? evalCfg(s).goal : null;
-    lines.push({id:s.id, goal:!!(isGoal&&gv>0), goalVal:gv, vals:vs, max:Math.max(1,...vs)});
+    lines.push({id:s.id, goal:evalType(s)==="goal", choice:evalType(s)==="choice", vals:chartSeries.map(p=>p.vals[s.id]||0)});
   }});
-  const gy=padT+H-H*0.5;   // 達成率1.0＝中央
+  const sharedMax=Math.max(1,...chartSeries.map(s=>s.exp));  // 全体経験値を共通の天井に
+  const gy=padT+H-H*0.5;                                      // 達成率1.0＝中央
   function yFor(ln,v){
-    if(ln.goal) return padT+H - H*Math.max(0,Math.min(1,(v/ln.goalVal)/2)); // 1.0で中央、2.0で天井
-    return padT+H - H*(v/ln.max);
+    if(ln.goal)   return padT+H - H*Math.max(0,Math.min(1,v/2));   // 達成率1.0→中央、2.0→天井
+    if(ln.choice) return padT+H - H*Math.max(0,Math.min(1,v));     // 段階の波（元気=上、悪い=下）
+    return padT+H - H*Math.min(1, v/sharedMax);
   }
   // 目標ライン（Daily Goalsを表示中のときだけ、薄く）
   if(lines.some(l=>l.goal)){
@@ -1875,6 +1948,7 @@ addEventListener("resize",()=>{ if(!document.getElementById("view-graph").hidden
 /* ================= 起動 ================= */
 resize();
 renderAll();
+maybeIntro();
 requestAnimationFrame(frame);
 </script>
 <script>
