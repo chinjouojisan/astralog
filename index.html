@@ -690,16 +690,29 @@ function evalPoints(sec, rec){
   }
   if(!(lg.entries&&lg.entries.length)) return 0;
   const total=lg.entries.reduce((a,e)=>a+(+e.v||0),0);
-  if(t==="progress"){ const up=c.unit_per>0?c.unit_per:1; return Math.floor(total/up)*c.points; }
+  if(t==="progress"){
+    if(sec.type==="menu"){                             // 種目ごとに基準を当てて合算（比例）
+      let pts=0;
+      (sec.items||[]).forEach(it=>{
+        const itot=lg.entries.filter(e=>e.item===it.id).reduce((a,e)=>a+(+e.v||0),0);
+        if(!itot) return;
+        const up=(it.ev&&it.ev.unit_per>0)?it.ev.unit_per:(c.unit_per>0?c.unit_per:1);
+        const pp=(it.ev&&it.ev.points!=null)?it.ev.points:c.points;
+        pts += (itot/up)*pp;
+      });
+      return pts;
+    }
+    const up=c.unit_per>0?c.unit_per:1; return (total/up)*c.points;  // amount式
+  }
   if(t==="goal"){ return (c.goal&&c.goal>0)?(total/c.goal)*3:0; }  // 達成率×3（超過も）
   return 1;                                            // Note：記録した事実だけ
 }
-/* 1日の経験値：基礎3（継続の核）＋ 各セクションの評価点。天井なし。 */
+/* 1日の経験値：基礎3 ＋ 各セクションの評価点。全体を半分に落として使う。天井なし。 */
 function dayExp(rec){
   if(!isRecorded(rec)) return 0;
   let e=3;
   sections().forEach(sec=>{ e+=evalPoints(sec,rec); });
-  return e;
+  return e*0.5;                                        // 全体を半分に
 }
 function totalExp(){
   let e=0;
@@ -714,11 +727,11 @@ function lightParams(){
   const exp=totalExp();
   const streak=streakCount();
   const recorded=isRecorded(state.days[TODAY]);
-  const grow=Math.min(exp/3600,1);              // 0..1 成熟度（新スケールで1年ほど）
+  const grow=Math.min(exp/1800,1);              // 0..1 成熟度（exp半減に合わせ半分に）
   // 大きさ：積み重ねで大きく（最大 ~2.4）。縮まない。
   const size=0.55 + grow*1.85;
-  // 色段階：約280exp で1色増える（最大12）。最初は青白の単色。
-  const colorStage=Math.min(1+Math.floor(exp/280),12);
+  // 色段階：約140exp で1色増える（最大12）。最初は青白の単色。
+  const colorStage=Math.min(1+Math.floor(exp/140),12);
   // 明るさ：土台＋今日記録＋連続の勢い
   const bright=0.34 + (recorded?0.30:0) + Math.min(streak*0.02,0.34);
   return {size,colorStage,bright,streak,recorded,exp,grow};
@@ -1079,8 +1092,13 @@ function evalBox(sec){
   let h='<div class="eval-box"><div class="eval-label">評価方法</div><div class="eval-pick">';
   types.forEach(a=>{ h+='<button data-act="evtype" data-sec="'+sec.id+'" data-ev="'+a[0]+'" class="'+(t===a[0]?'on':'')+'">'+a[1]+'</button>'; });
   h+='</div>';
-  if(t==="progress") h+='<button class="eval-set" data-act="evset" data-sec="'+sec.id+'">'+c.unit_per+' 単位ごとに '+c.points+' pt（変更）</button>';
-  else if(t==="goal") h+='<button class="eval-set" data-act="evgoal" data-sec="'+sec.id+'">1日の目標: '+(c.goal!=null?c.goal:'未設定')+(sec.unit?(' '+esc(sec.unit)):'')+'（変更）</button>';
+  if(t==="progress"){
+    h+='<button class="eval-set" data-act="evset" data-sec="'+sec.id+'">'+c.unit_per+' 単位ごとに '+c.points+' pt（変更）</button>';
+    if(sec.type==="menu") h+='<div class="eval-hint">これは全体の基準です。各種目の「基準」で種目ごとに変えられます（例：スクワット10回=1pt／プランク30秒=1pt）。</div>';
+    else h+='<div class="eval-hint">'+evalHint(t)+'</div>';
+    return h+'</div>';
+  }
+  if(t==="goal") h+='<button class="eval-set" data-act="evgoal" data-sec="'+sec.id+'">1日の目標: '+(c.goal!=null?c.goal:'未設定')+(sec.unit?(' '+esc(sec.unit)):'')+'（変更）</button>';
   h+='<div class="eval-hint">'+evalHint(t)+'</div></div>';
   return h;
 }
@@ -1124,6 +1142,7 @@ function sectionHTML(sec,rec){
         +'</div>'
         +(ed?'<div class="menu-edit"><button data-act="renmenu" data-sec="'+sec.id+'" data-item="'+it.id+'">名前</button>'
            +'<button data-act="unitmenu" data-sec="'+sec.id+'" data-item="'+it.id+'">単位</button>'
+           +(evalType(sec)==="progress"?'<button data-act="basismenu" data-sec="'+sec.id+'" data-item="'+it.id+'">基準</button>':'')
            +'<button class="danger" data-act="delmenu" data-sec="'+sec.id+'" data-item="'+it.id+'">削除</button></div>':'')
         +'</div>';
     }).join("")
@@ -1171,6 +1190,13 @@ document.getElementById("sections").addEventListener("click",e=>{
   if(act==="delmenu"){ const it=item(); if(it) askConfirm("「"+it.label+"」を削除しますか？",()=>{ sec.items=sec.items.filter(x=>x.id!==b.dataset.item); afterChange(); }); return; }
   if(act==="renmenu"){ const it=item(); if(it) askInput("メニュー名を変更",{value:it.label},v=>{ v=(v||"").trim(); if(v){ it.label=v; afterChange(); } }); return; }
   if(act==="unitmenu"){ const it=item(); if(it) askInput("単位を変更",{value:it.unit||"回",placeholder:"例：回／秒"},v=>{ v=(v||"").trim(); if(v){ it.unit=v; afterChange(); } }); return; }
+  if(act==="basismenu"){ const it=item(); if(!it) return; const dc=evalCfg(sec);
+    const up=(it.ev&&it.ev.unit_per>0)?it.ev.unit_per:dc.unit_per;
+    const pp=(it.ev&&it.ev.points!=null)?it.ev.points:dc.points;
+    askInput("「"+it.label+"」の基準（何単位ごとに何ポイント）",{value:up+", "+pp,placeholder:"10, 1"},v=>{
+      const m=(v||"").split(/[,、\s]+/).map(Number).filter(x=>!isNaN(x));
+      if(m.length>=2&&m[0]>0){ it.ev={unit_per:m[0],points:m[1]}; afterChange(); }
+    }); return; }
   if(act==="maddstep"){ const it=item(); if(it) askInput("回数を追加",{label:"数値",placeholder:"例：20",numeric:true},v=>{ const n=parseFloat(v); if(!isNaN(n)&&n>0){ it.steps=it.steps||[]; if(!it.steps.includes(n)){ it.steps.push(n); it.steps.sort((a,b)=>a-b); afterChange(); } } }); return; }
   if(act==="mdelstep"){ const it=item(); if(it&&it.steps){ it.steps=it.steps.filter(v=>String(v)!==b.dataset.v); } afterChange(); return; }
   if(act==="evtype"){
@@ -1822,7 +1848,7 @@ function sectionDayValue(sec,k){
     if(idx<0||opts.length<=1) return 1;
     return 1 - idx/(opts.length-1);
   }
-  return evalPoints(sec, rec);                         // それ以外は経験値ポイント
+  return evalPoints(sec, rec)*0.5;                    // 経験値ポイント（全体半分に合わせる）
 }
 function buildSeries(range){
   const secs=sections(), out=[], now=new Date();
