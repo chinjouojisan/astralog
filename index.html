@@ -349,6 +349,25 @@
   .backup-btn:active{background:rgba(160,190,255,.16);}
   /* カウンセリングシート */
   .counsel-sheet{max-height:88vh;overflow-y:auto;}
+  /* Journal */
+  .journal-sheet{max-height:88vh;display:flex;flex-direction:column;}
+  #j-list{overflow-y:auto;flex:1;margin:4px 0 14px;min-height:80px;}
+  .j-entry{padding:14px 2px;border-bottom:1px solid rgba(120,140,220,.1);cursor:pointer;}
+  .j-entry:last-child{border-bottom:none;}
+  .j-when{font-size:11px;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:6px;
+    font-family:var(--mincho);}
+  .j-body{font-size:14px;line-height:1.75;color:var(--ink);white-space:pre-wrap;
+    word-break:break-word;font-family:var(--mincho);}
+  .j-empty{text-align:center;color:var(--ink-faint);font-size:13px;padding:28px 0;
+    line-height:1.9;letter-spacing:.06em;font-family:var(--mincho);}
+  #j-text{width:100%;min-height:200px;background:rgba(6,8,16,.6);border:1px solid var(--panel-line);
+    border-radius:12px;color:var(--ink);font-size:14px;line-height:1.8;padding:14px;
+    font-family:var(--mincho);resize:vertical;letter-spacing:.02em;}
+  #j-text::placeholder{color:var(--ink-faint);}
+  .j-edit-btns{display:flex;gap:10px;margin-top:12px;align-items:center;}
+  .j-edit-btns .btn-fill,.j-edit-btns .btn-ghost{flex:1;}
+  .j-del{background:transparent;border:1px solid rgba(191,85,104,.3);color:#bf5568;
+    border-radius:12px;padding:12px 16px;font-size:13px;cursor:pointer;letter-spacing:.1em;flex:0 0 auto;}
   .type-pick.c-range{grid-template-columns:repeat(4,1fr);}
   .c-targets{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .c-targets button{font-size:12px;color:var(--ink-dim);background:rgba(140,160,230,.05);
@@ -377,6 +396,12 @@
   .d-times{display:flex;flex-wrap:wrap;gap:5px 12px;margin:3px 0 12px;}
   .d-times span{font-size:11px;color:var(--ink-faint);letter-spacing:.04em;font-variant-numeric:tabular-nums;}
   .day-empty{text-align:center;color:var(--ink-dim);font-family:var(--mincho);font-size:15px;letter-spacing:.1em;padding:22px 0;}
+  .cell .jmark{position:absolute;bottom:6px;right:7px;width:4px;height:4px;border-radius:50%;
+    background:var(--accent);opacity:.75;z-index:1;}
+  .d-journal{display:flex;gap:10px;margin-top:8px;align-items:baseline;}
+  .d-journal .d-jtime{font-size:11px;color:var(--ink-faint);flex:0 0 auto;font-family:var(--mincho);}
+  .d-journal .d-jtext{font-size:13px;line-height:1.7;color:var(--ink);white-space:pre-wrap;
+    word-break:break-word;font-family:var(--mincho);}
   .day-empty small{display:block;margin-top:10px;font-size:12px;color:var(--ink-faint);letter-spacing:.14em;}
 
   @media (prefers-reduced-motion:reduce){
@@ -408,6 +433,8 @@
     <button id="add-section" class="add-section">＋ セクションを追加</button>
 
     <button id="open-counsel" class="counsel-open">✎ カウンセリングシート</button>
+
+    <button id="open-journal" class="counsel-open">📖 Journal</button>
 
     <button id="open-settings" class="settings-link">☽ 星の設定</button>
 
@@ -554,6 +581,7 @@
       <div class="fld">対象（複数選べます）
         <div id="c-targets" class="c-targets"></div>
         <label class="c-wish-row"><input type="checkbox" id="c-wish" checked> 願いを含める</label>
+        <label class="c-wish-row"><input type="checkbox" id="c-journal"> 日記を含める</label>
       </div>
 
       <div class="sheet-btns">
@@ -567,6 +595,26 @@
           <button id="c-copy" class="backup-btn">コピー</button>
           <button id="c-save" class="backup-btn">ファイルで書き出す</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Journal（自由筆記の日記・光やグラフには影響しない） -->
+  <div id="journal" class="modal">
+    <div class="sheet journal-sheet">
+      <div class="sheet-title">Journal</div>
+      <div id="j-list"></div>
+      <div id="j-editor" hidden>
+        <textarea id="j-text" placeholder="今日を綴る…　　旅の途中の、思ったこと。"></textarea>
+        <div class="j-edit-btns">
+          <button id="j-del" class="j-del" hidden>削除</button>
+          <button id="j-cancel" class="btn-ghost">やめる</button>
+          <button id="j-keep" class="btn-fill">残す</button>
+        </div>
+      </div>
+      <div id="j-listbtns" class="sheet-btns">
+        <button id="j-close" class="btn-ghost">閉じる</button>
+        <button id="j-new" class="btn-fill">＋ 綴る</button>
       </div>
     </div>
   </div>
@@ -620,6 +668,7 @@ function migrate(s){
       delete sec.unit;
     }
   }
+  if(!Array.isArray(s.journal)) s.journal=[];
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 
@@ -1322,6 +1371,20 @@ function glow(x,y,r,rgb,a){
   g.addColorStop(1,   "rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+",0)");
   sctx.fillStyle=g; sctx.beginPath(); sctx.arc(x,y,r,0,Math.PI*2); sctx.fill();
 }
+/* 虹色オーラ（起動MAX・#maxlight のときだけ、光球を包む七色のモヤ） */
+const RAINBOW=[[255,95,95],[255,165,75],[250,225,95],[115,230,140],[90,195,255],[140,135,255],[212,120,255]];
+function drawAura(x,y,R,t,amt){
+  if(amt<=0.01) return;
+  const rot=(reduce?0:t*0.00018), br=reduce?1:1+Math.sin(t*0.0013)*0.08;
+  for(let i=0;i<RAINBOW.length;i++){                 // 外周をぐるりと巡る虹
+    const ang=i/RAINBOW.length*Math.PI*2 + rot;
+    glow(x+Math.cos(ang)*R*1.32, y+Math.sin(ang)*R*1.32, R*1.55, RAINBOW[i], 0.11*amt*br);
+  }
+  for(let i=0;i<RAINBOW.length;i++){                 // 内側の淡い虹の輪（逆回転）
+    const ang=i/RAINBOW.length*Math.PI*2 - rot*0.6 + 0.4;
+    glow(x+Math.cos(ang)*R*0.82, y+Math.sin(ang)*R*0.82, R*1.05, RAINBOW[i], 0.07*amt*br);
+  }
+}
 
 /* 漂う光の粒 */
 const motes=[];
@@ -1347,23 +1410,28 @@ function frame(t){
   gazeAmt   += (gazeTarget-gazeAmt)*0.08;
   const breathe = reduce ? 1 : 1+Math.sin(t*0.0011)*0.06;
 
-  let CY, R, gg, cs, bb;
+  let CY, R, gg, cs, bb, auraAmt=0;
+  const maxPrev = location.hash.indexOf("maxlight")>=0;
   if(introActive){                                  // 起動演出：MAXの光を中央で小→大
     const pr=Math.min(1,(t-introStart)/INTRO_DUR);
     const s=introScale(pr);
     CY=H*0.5; R=baseR*s*breathe; gg=1; cs=12; bb=0.98;
     curScale=s;                                     // 終了後、通常サイズへイージングする起点
+    auraAmt=Math.max(0,Math.min(1,(s-1)/1.6));      // 球が育つほど虹が満ちる
     if(pr>=1) finishIntro();
   } else {
     CY=H*0.30 + (H*0.5 - H*0.30)*gazeAmt;           // 通常は上部、眺めると中央へ
     R=baseR*curScale*breathe*(1+gazeAmt*0.55);
     gg=p.grow; cs=p.colorStage; bb=curBright;
+    if(maxPrev) auraAmt=1;                           // #maxlight プレビューでも虹を出す
   }
   const coreB=1+gg*0.5;
 
   sctx.clearRect(0,0,W,H);
   sctx.globalCompositeOperation="lighter";
 
+  // 虹色オーラ（起動MAX・#maxlight のときだけ、光球を包む）
+  drawAura(cx,CY,R,t,auraAmt);
   // 広がるコロナ
   if(gg>0.02) glow(cx,CY,R*5.2, PALETTE[0], bb*0.05*gg*breathe);
   // 核：青白いモヤ
@@ -1541,11 +1609,13 @@ function renderCal(){
   for(let d=1;d<=days;d++){
     const dt=new Date(calY,calM,d), k=dayKey(dt), rec=state.days[k];
     const on=isRecorded(rec);
+    const hasJ=journalArr().some(e=>{ const jd=new Date(e.t); return !isNaN(jd)&&dayKey(jd)===k; });
     const g=on?(dayExp(rec)-10)/5:0;
     const cls="cell"+(on?" rec":"")+(k===TODAY?" today":"");
     html+='<div class="'+cls+'" data-k="'+k+'" style="--g:'+g.toFixed(2)+'">'
         + '<span class="moon">'+moonSVG(moonPhase(dt),100)+'</span>'
         + ((on||k===TODAY)?'<span class="starglow"></span>':'')
+        + (hasJ?'<span class="jmark"></span>':'')
         + '<span class="num">'+d+'</span></div>';
   }
   document.getElementById("cal-grid").innerHTML=html;
@@ -1562,43 +1632,51 @@ const dayModal=document.getElementById("day");
 function timeSort(a,b){ return (a.t||"")<(b.t||"")?-1:1; }
 function dayDetailHTML(k){
   const rec=state.days[k];
-  if(!isRecorded(rec)) return '<div class="day-empty">記録はありません。<small>空白も、休息のうち。</small></div>';
-  const logs=rec.logs;
-  const order=[];
-  sections().forEach(s=>{ if(logs[s.id]) order.push(s.id); });
-  for(const id in logs){ if(order.indexOf(id)<0) order.push(id); }
-
+  const jrnl=journalArr().filter(e=>{ const d=new Date(e.t); return !isNaN(d)&&dayKey(d)===k; }).sort((a,b)=>(a.t<b.t?-1:1));
+  if(!isRecorded(rec) && !jrnl.length) return '<div class="day-empty">記録はありません。<small>空白も、休息のうち。</small></div>';
   let html="";
-  for(const id of order){
-    const lg=logs[id]; if(!logHasData(lg)) continue;
-    const sec=sectionById(id);
-    const name=sec?sec.name:"（削除されたセクション）";
-    let inner="";
-    if(lg.sel){
-      inner='<div class="d-choice">'+esc(lg.sel)+'</div>';
-    } else if(lg.entries&&lg.entries.length){
-      const hasItem=lg.entries.some(e=>e.item);
-      if(hasItem){
-        const groups={};
-        lg.entries.forEach(e=>{ (groups[e.item]=groups[e.item]||[]).push(e); });
-        for(const itId in groups){
-          const it=(sec&&sec.items)?sec.items.find(x=>x.id===itId):null;
-          const label=it?it.label:"（不明な項目）";
-          const unit=it?(it.unit||""):"";
-          const es=groups[itId].slice().sort(timeSort);
+  if(isRecorded(rec)){
+    const logs=rec.logs;
+    const order=[];
+    sections().forEach(s=>{ if(logs[s.id]) order.push(s.id); });
+    for(const id in logs){ if(order.indexOf(id)<0) order.push(id); }
+    for(const id of order){
+      const lg=logs[id]; if(!logHasData(lg)) continue;
+      const sec=sectionById(id);
+      const name=sec?sec.name:"（削除されたセクション）";
+      let inner="";
+      if(lg.sel){
+        inner='<div class="d-choice">'+esc(lg.sel)+'</div>';
+      } else if(lg.entries&&lg.entries.length){
+        const hasItem=lg.entries.some(e=>e.item);
+        if(hasItem){
+          const groups={};
+          lg.entries.forEach(e=>{ (groups[e.item]=groups[e.item]||[]).push(e); });
+          for(const itId in groups){
+            const it=(sec&&sec.items)?sec.items.find(x=>x.id===itId):null;
+            const label=it?it.label:"（不明な項目）";
+            const unit=it?(it.unit||""):"";
+            const es=groups[itId].slice().sort(timeSort);
+            const tot=es.reduce((a,e)=>a+(+e.v||0),0);
+            inner+='<div class="d-row"><span class="d-name">'+esc(label)+'</span><span class="d-tot">'+tot+' '+esc(unit)+'</span></div>';
+            inner+='<div class="d-times">'+es.map(e=>'<span>'+(e.t||"")+'　+'+e.v+'</span>').join("")+'</div>';
+          }
+        } else {
+          const es=lg.entries.slice().sort(timeSort);
+          const unit=sec?(sec.unit||""):"";
           const tot=es.reduce((a,e)=>a+(+e.v||0),0);
-          inner+='<div class="d-row"><span class="d-name">'+esc(label)+'</span><span class="d-tot">'+tot+' '+esc(unit)+'</span></div>';
+          inner+='<div class="d-row"><span class="d-name">合計</span><span class="d-tot">'+tot+' '+esc(unit)+'</span></div>';
           inner+='<div class="d-times">'+es.map(e=>'<span>'+(e.t||"")+'　+'+e.v+'</span>').join("")+'</div>';
         }
-      } else {
-        const es=lg.entries.slice().sort(timeSort);
-        const unit=sec?(sec.unit||""):"";
-        const tot=es.reduce((a,e)=>a+(+e.v||0),0);
-        inner+='<div class="d-row"><span class="d-name">合計</span><span class="d-tot">'+tot+' '+esc(unit)+'</span></div>';
-        inner+='<div class="d-times">'+es.map(e=>'<span>'+(e.t||"")+'　+'+e.v+'</span>').join("")+'</div>';
       }
+      html+='<div class="d-sec"><div class="d-sec-name">'+esc(name)+'</div>'+inner+'</div>';
     }
-    html+='<div class="d-sec"><div class="d-sec-name">'+esc(name)+'</div>'+inner+'</div>';
+  }
+  if(jrnl.length){
+    html+='<div class="d-sec"><div class="d-sec-name">Journal</div>';
+    jrnl.forEach(e=>{ const d=new Date(e.t); const hm=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+      html+='<div class="d-journal"><span class="d-jtime">'+hm+'</span><div class="d-jtext">'+esc(e.text)+'</div></div>'; });
+    html+='</div>';
   }
   return html;
 }
@@ -1743,7 +1821,7 @@ function rawDay(k, secs){
   });
   return O.join("\n");
 }
-function buildCounsel(kind, range, selIds, includeWish){
+function buildCounsel(kind, range, selIds, includeWish, includeJournal){
   const secs=sections().filter(s=>selIds.indexOf(s.id)>=0);
   const days=daysInRange(range);
   const label={week:"今週",month:"今月","3mo":"過去3ヶ月",all:"全期間"}[range];
@@ -1772,6 +1850,16 @@ function buildCounsel(kind, range, selIds, includeWish){
     if(!ws.length) O.push("- （まだありません）");
     O.push("");
   }
+  if(includeJournal){
+    const arr=journalArr().filter(e=>{
+      if(!start) return true;
+      const d=new Date(e.t); return !isNaN(d) && d>=start;
+    }).sort((a,b)=>(a.t<b.t?-1:1));
+    O.push("## 日記");
+    if(arr.length){ arr.forEach(e=>{ O.push("### "+jWhen(e.t)); O.push(e.text); O.push(""); }); }
+    else O.push("（この範囲に日記はありません）");
+    O.push("");
+  }
   return O.join("\n").replace(/\n{3,}/g,"\n\n").trim()+"\n";
 }
 function openCounsel(){
@@ -1790,7 +1878,7 @@ document.getElementById("c-range").addEventListener("click",e=>{ const b=e.targe
 document.getElementById("c-targets").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; const id=b.dataset.tid; if(cSel.has(id)) cSel.delete(id); else cSel.add(id); b.classList.toggle("on"); });
 document.getElementById("c-gen").addEventListener("click",()=>{
   let sel=Array.from(cSel); if(!sel.length) sel=sections().map(s=>s.id);
-  document.getElementById("c-out").value=buildCounsel(cKind,cRange,sel,document.getElementById("c-wish").checked);
+  document.getElementById("c-out").value=buildCounsel(cKind,cRange,sel,document.getElementById("c-wish").checked,document.getElementById("c-journal").checked);
   document.getElementById("c-out-wrap").hidden=false;
 });
 function cFlash(id,label){ const b=document.getElementById(id), t=b.textContent; b.textContent=label; setTimeout(()=>{b.textContent=t;},1200); }
@@ -1807,6 +1895,54 @@ document.getElementById("c-save").addEventListener("click",()=>{
     a.href=url; a.download="astralog-counsel-"+dayKey()+".md"; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),1500);
   }catch(e){}
+});
+
+/* ================= Journal（自由筆記・評価には影響しない） ================= */
+function journalArr(){ return Array.isArray(state.journal)?state.journal:(state.journal=[]); }
+function jWhen(iso){
+  const d=new Date(iso); if(isNaN(d)) return "";
+  const wd=["日","月","火","水","木","金","土"];
+  return (d.getMonth()+1)+"月"+d.getDate()+"日（"+wd[d.getDay()]+"）"+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+const journalModal=document.getElementById("journal");
+let jEditId=null;
+function renderJournalList(){
+  const arr=journalArr().slice().sort((a,b)=>(a.t<b.t?1:-1)); // 新しい順
+  const box=document.getElementById("j-list");
+  if(!arr.length){ box.innerHTML='<div class="j-empty">まだ何も綴っていません。<br>今日の旅を、一行だけでも。</div>'; return; }
+  box.innerHTML=arr.map(e=>'<div class="j-entry" data-jid="'+e.id+'"><div class="j-when">'+esc(jWhen(e.t))+'</div><div class="j-body">'+esc(e.text)+'</div></div>').join("");
+}
+function showJList(){ document.getElementById("j-editor").hidden=true; document.getElementById("j-listbtns").hidden=false; document.getElementById("j-list").hidden=false; renderJournalList(); }
+function showJEditor(entry){
+  jEditId = entry?entry.id:null;
+  document.getElementById("j-text").value = entry?entry.text:"";
+  document.getElementById("j-del").hidden = !entry;
+  document.getElementById("j-list").hidden=true;
+  document.getElementById("j-listbtns").hidden=true;
+  document.getElementById("j-editor").hidden=false;
+  setTimeout(()=>document.getElementById("j-text").focus(),50);
+}
+function openJournal(){ journalModal.classList.add("open"); showJList(); }
+function closeJournal(){ journalModal.classList.remove("open"); }
+document.getElementById("open-journal").addEventListener("click",openJournal);
+document.getElementById("j-close").addEventListener("click",closeJournal);
+journalModal.addEventListener("click",e=>{ if(e.target===journalModal) closeJournal(); });
+document.getElementById("j-new").addEventListener("click",()=>showJEditor(null));
+document.getElementById("j-list").addEventListener("click",e=>{
+  const el=e.target.closest(".j-entry"); if(!el) return;
+  const en=journalArr().find(x=>x.id===el.dataset.jid); if(en) showJEditor(en);
+});
+document.getElementById("j-cancel").addEventListener("click",showJList);
+document.getElementById("j-keep").addEventListener("click",()=>{
+  const txt=document.getElementById("j-text").value.trim();
+  if(!txt){ showJList(); return; }
+  if(jEditId){ const en=journalArr().find(x=>x.id===jEditId); if(en) en.text=txt; }
+  else { journalArr().push({id:uid(), t:new Date().toISOString(), text:txt}); }
+  save(); showJList();
+});
+document.getElementById("j-del").addEventListener("click",()=>{
+  if(!jEditId) return;
+  askConfirm("この記録を削除しますか？",()=>{ state.journal=journalArr().filter(x=>x.id!==jEditId); save(); showJList(); });
 });
 
 /* ================= ビュー切替 ================= */
