@@ -2029,10 +2029,10 @@ function drawChart(){
   chartSeries.forEach((s,i)=>{
     const x=padL+slot*(i+0.5), bh=H*Math.min(1,s.cum/ceiling), y=padT+H-bh;
     const grad=cctx.createLinearGradient(0,y,0,padT+H);
-    grad.addColorStop(0,"rgba(150,180,255,0.45)");
-    grad.addColorStop(1,"rgba(110,140,235,0.04)");
+    grad.addColorStop(0,"rgba(160,190,255,0.72)");
+    grad.addColorStop(1,"rgba(120,150,240,0.12)");
     cctx.fillStyle=grad; roundTop(cctx,x-barW/2,y,barW,bh,3); cctx.fill();
-    if(bh>1.5){ cctx.fillStyle="rgba(200,220,255,0.8)"; cctx.fillRect(x-barW/2,y,barW,1.4); }
+    if(bh>1.5){ cctx.fillStyle="rgba(215,230,255,0.95)"; cctx.fillRect(x-barW/2,y,barW,2); }
   });
 
   // 折れ線：全体＋各セクション。Note/Progress/Choice/全体は「経験値ポイント」の共通スケール、Daily Goalsは達成率
@@ -2046,7 +2046,8 @@ function drawChart(){
   function yFor(ln,v){
     if(ln.goal)   return padT+H - H*Math.max(0,Math.min(1,v/2));   // 達成率1.0→中央、2.0→天井
     if(ln.choice) return padT+H - H*Math.max(0,Math.min(1,v));     // 段階の波（元気=上、悪い=下）
-    return padT+H - H*Math.min(1, v/sharedMax);
+    if(ln.id==="__all__") return padT+H - H*Math.min(1, v/(sharedMax*2)); // 全体は天井2倍＝MAXが半分の位置に
+    return padT+H - H*Math.min(1, v/sharedMax);                    // 各セクションは従来通り
   }
   // 目標ライン（Daily Goalsを表示中のときだけ、薄く）
   if(lines.some(l=>l.goal)){
@@ -2057,8 +2058,8 @@ function drawChart(){
   }
   lines.forEach(ln=>{
     const col=lineColor(ln.id);
-    cctx.lineWidth=1.7; cctx.lineJoin="round"; cctx.globalAlpha=0.92; cctx.strokeStyle=col;
-    cctx.shadowColor=col; cctx.shadowBlur=8;
+    cctx.lineWidth=1.2; cctx.lineJoin="round"; cctx.globalAlpha=0.92; cctx.strokeStyle=col;
+    cctx.shadowColor=col; cctx.shadowBlur=6;
     cctx.beginPath();
     ln.vals.forEach((v,i)=>{ const x=padL+slot*(i+0.5), y=yFor(ln,v); i?cctx.lineTo(x,y):cctx.moveTo(x,y); });
     cctx.stroke(); cctx.shadowBlur=0; cctx.globalAlpha=1;
